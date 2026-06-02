@@ -1,150 +1,55 @@
-const defaults = [
-  { title:'Pass Rush', stat:'20', label:'Sacks', rank:'32nd NFL', severity:'Worst in the NFL', status:'pending', include:true, evidence:['Osa Odighizuwa added','Romelo Height drafted','Grayson Halton drafted','More interior rush depth'] },
-  { title:'Interceptions', stat:'6', label:'INTs Forced', rank:'32nd NFL', severity:'Dead last takeaway production', status:'notfixed', include:true, evidence:['Still needs proven ball production','Secondary must create more plays'] },
-  { title:'Red Zone D', stat:'29', label:'TDs Allowed', rank:'Worst NFL', severity:'Could not finish drives defensively', status:'pending', include:true, evidence:['Front seven rebuilt','Must prove it inside the 20'] },
-  { title:'Run Game', stat:'3.78', label:'Yards/Carry', rank:'30th NFL', severity:'Inefficient rushing attack', status:'pending', include:true, evidence:['Kaelon Black added','More OL competition','Needs explosive-run rebound'] },
-  { title:'Turnovers', stat:'23', label:'Giveaways', rank:'27th NFL', severity:'Too many empty possessions', status:'notfixed', include:true, evidence:['Decision-making must improve','Ball security is not solved on paper'] },
-  { title:'Penalties', stat:'106', label:'Penalties', rank:'3rd Most', severity:'Self-inflicted damage', status:'notfixed', include:true, evidence:['Discipline must improve','Cannot be fully fixed by roster moves'] }
+const DEFAULTS = [
+  { title:'Pass Rush', stat:'20', label:'Sacks', rank:'32nd NFL', severity:'Pass rush collapse', status:'pending', included:true, evidence:['Osa Odighizuwa added','Romelo Height drafted','Grayson Halton drafted'] },
+  { title:'Interceptions', stat:'6', label:'INTs Forced', rank:'32nd NFL', severity:'Could not create takeaways', status:'pending', included:true, evidence:['Added ball-hawk secondary competition','Coverage communication must improve','Still needs 2026 proof'] },
+  { title:'Red Zone D', stat:'29', label:'TDs Allowed', rank:'Worst NFL', severity:'Worst red zone defense', status:'pending', included:true, evidence:['Added size to defensive front','New personnel packages','Needs real-game stops'] },
+  { title:'Run Game', stat:'3.78', label:'Yards/Carry', rank:'30th NFL', severity:'Rushing efficiency problem', status:'pending', included:true, evidence:['Kaelon Black drafted','OL depth and competition added','Run game still unproven'] },
+  { title:'Turnovers', stat:'23', label:'Giveaways', rank:'27th NFL', severity:'Turnover problem', status:'notfixed', included:true, evidence:['Decision-making must improve','Ball security is not solved on paper'] },
+  { title:'Penalties', stat:'106', label:'Penalties', rank:'3rd Most', severity:'Discipline problem', status:'notfixed', included:true, evidence:['Coaching emphasis only','Cannot be fixed until games are played'] }
 ];
-
-let problems = JSON.parse(localStorage.getItem('fixTrackerProblemsV2') || localStorage.getItem('fixTrackerProblems') || 'null') || defaults;
-problems = problems.map(p => ({ include:true, severity:'Critical issue', evidence:[], ...p }));
-let mode = 'setup';
-let current = 0;
-let editing = 0;
-let drawer = false;
-let clean = false;
-let reveal = false;
+let state = JSON.parse(localStorage.getItem('fixTrackerStudio') || 'null') || { problems: DEFAULTS, selected:0, mode:'setup', reveal:false, clean:false };
 const app = document.getElementById('app');
-
-const activeProblems = () => problems.filter(p => p.include !== false);
-const save = () => localStorage.setItem('fixTrackerProblemsV2', JSON.stringify(problems));
-const cls = s => s === 'fixed' ? 'fixed' : s === 'pending' ? 'pending' : 'notfixed';
-const sym = s => s === 'fixed' ? '👍' : s === 'pending' ? '●' : '👎';
-const label = s => s === 'fixed' ? 'Fixed' : s === 'pending' ? 'Pending' : 'Not Fixed';
-const fixedCount = () => activeProblems().filter(p => p.status === 'fixed').length;
-
-function render(){
-  if(mode === 'setup') renderSetup();
-  if(mode === 'board') renderBoard();
-  if(mode === 'problem') renderProblem();
-}
-
-function field(l,k,v){
-  return `<div class="stack"><div class="label">${l}</div><input value="${String(v ?? '').replaceAll('"','&quot;')}" onchange="updateField('${k}',this.value)"></div>`;
-}
-
-function renderSetup(){
-  const p = problems[editing] || problems[0];
-  app.innerHTML = `
-    <section class="control-room">
-      <div class="control-top">
-        <div class="brand"><div class="mark">SF</div><div><b>49ers Fix Tracker</b><span>Broadcast Production Tool</span></div></div>
-        <div class="top-actions"><button class="ghost-btn" onclick="resetData()">Reset Defaults</button><button class="primary-btn" onclick="launch()">Launch Presentation</button></div>
-      </div>
-      <div class="control-hero">
-        <div><div class="eyebrow">Producer setup</div><h1>Control Room</h1><p>Build the episode. The audience only sees the clean fullscreen graphics.</p></div>
-        <div class="score-chip"><b>${fixedCount()} / ${activeProblems().length}</b><span>Problems Fixed</span></div>
-      </div>
-      <div class="control-grid">
-        <div class="panel editor-panel">
-          <div class="issue-editor">
-            <label class="include-row"><input type="checkbox" ${p.include!==false?'checked':''} onchange="toggleInclude(this.checked)"> Include in this episode</label>
-            ${field('Problem Title','title',p.title)}${field('Main Stat','stat',p.stat)}${field('Stat Label','label',p.label)}${field('NFL Rank','rank',p.rank)}
-            <div class="stack"><div class="label">Status</div><select onchange="updateField('status',this.value)"><option value="fixed" ${p.status==='fixed'?'selected':''}>Fixed</option><option value="pending" ${p.status==='pending'?'selected':''}>Pending</option><option value="notfixed" ${p.status==='notfixed'?'selected':''}>Not Fixed</option></select></div>
-            ${field('Severity Line','severity',p.severity)}
-            <div class="stack evidence-edit"><div class="label">Evidence Bullets — one per line</div><textarea onchange="updateEvidence(this.value)">${p.evidence.join('\n')}</textarea></div>
-            <div class="editor-actions"><button class="ghost-btn" onclick="addProblem()">Add Problem</button><button class="danger-btn" onclick="deleteProblem()">Delete</button><button class="ghost-btn" onclick="move(-1)">Move Up</button><button class="ghost-btn" onclick="move(1)">Move Down</button></div>
-          </div>
-          <div class="issue-list">${problems.map((x,i)=>`<div class="mini-card ${i===editing?'active':''} ${x.include===false?'off':''}" onclick="editing=${i};render()"><div class="handle">${i+1}</div><div><div class="mini-title">${x.title}</div><div class="mini-sub">${x.stat} ${x.label} · ${x.rank}</div></div><span class="badge ${cls(x.status)}">${label(x.status)}</span></div>`).join('')}</div>
-        </div>
-        <div class="panel production-note">
-          <div class="eyebrow">Recording shortcuts</div>
-          <h2>Presentation Controls</h2>
-          <p><span class="kbd">Space</span> next &nbsp; <span class="kbd">←</span>/<span class="kbd">→</span> move</p>
-          <p><span class="kbd">B</span> board &nbsp; <span class="kbd">V</span> verdict &nbsp; <span class="kbd">M</span> controls</p>
-          <p><span class="kbd">C</span> clean mode &nbsp; <span class="kbd">H</span> hide controls</p>
-          <div class="tip">Use Chrome fullscreen before recording. Hover the far-left edge to bring back hidden controls.</div>
-        </div>
-      </div>
-    </section>`;
-}
-
-function updateField(k,v){ problems[editing][k] = v; save(); render(); }
-function updateEvidence(v){ problems[editing].evidence = v.split('\n').map(x=>x.trim()).filter(Boolean); save(); render(); }
-function toggleInclude(v){ problems[editing].include = v; save(); render(); }
-function addProblem(){ problems.push({title:'New Problem',stat:'0',label:'Stat',rank:'Rank',severity:'Why it mattered',status:'pending',include:true,evidence:['Evidence item']}); editing=problems.length-1; save(); render(); }
-function deleteProblem(){ if(problems.length < 2) return; problems.splice(editing,1); editing=Math.max(0,editing-1); save(); render(); }
-function move(d){ const ni=editing+d; if(ni<0||ni>=problems.length)return; [problems[editing],problems[ni]]=[problems[ni],problems[editing]]; editing=ni; save(); render(); }
-function resetData(){ problems=structuredClone(defaults); editing=0; current=0; save(); render(); }
-function launch(){ mode='board'; current=0; reveal=false; render(); }
-
-function controls(){
-  return `<div class="edge-hotspot" onmouseenter="drawer=true;render()"></div><div class="drawer ${drawer?'show':''}" onmouseleave="drawer=false;render()"><button class="ghost-btn" onclick="mode='setup';render()">Setup</button><button class="ghost-btn" onclick="mode='board';render()">Board</button><button class="ghost-btn" onclick="prev()">Prev</button><button class="primary-btn" onclick="next()">Next</button><button class="ghost-btn" onclick="clean=!clean;render()">Clean</button></div>`;
-}
-
-function renderBoard(){
-  const list = activeProblems();
-  app.innerHTML = `${controls()}<section class="stage board-stage">
-    <div class="broadcast-bg"></div>
-    <div class="board-wrap">
-      <div class="board-title"><div class="eyebrow">2025 Problem Fix Tracker</div><div class="mega-score"><span>${fixedCount()}</span><i>/</i><span>${list.length}</span></div><h1>Problems Fixed</h1><p>Roster moves were made. Production will tell the story.</p></div>
-      <div class="tile-grid">${list.map((p,i)=>`<button class="tile ${cls(p.status)}" onclick="current=${i};mode='problem';reveal=false;render()"><div class="tile-num">${String(i+1).padStart(2,'0')}</div><div><h2>${p.title}</h2><div class="tile-stat">${p.stat} ${p.label} · ${p.rank}</div></div><div class="tile-status"><span>${sym(p.status)}</span><b>${label(p.status)}</b></div></button>`).join('')}</div>
-      <div class="bottom-verdict">Click any problem to open the full-screen broadcast card</div>
+const flash = document.getElementById('flash');
+const save = () => localStorage.setItem('fixTrackerStudio', JSON.stringify(state));
+const episode = () => state.problems.filter(p=>p.included);
+const activeProblem = () => episode()[state.selected] || episode()[0] || state.problems[0];
+function fixedCount(){ return episode().filter(p=>p.status === 'fixed').length; }
+function statusText(s){ return s==='fixed'?'YES / FIXED':s==='notfixed'?'NO / NOT FIXED':'PENDING'; }
+function statusIcon(s){ return s==='fixed'?'👍':s==='notfixed'?'👎':'●'; }
+function clsStatus(s){ return s==='notfixed'?'notfixed':s; }
+function triggerFlash(type){ flash.className = 'flash ' + (type || 'gold'); setTimeout(()=>flash.className='flash',700); }
+function updateProblem(i, key, val){ state.problems[i][key]=val; save(); render(); }
+function selectProblem(i){ state.selected = Math.max(0, episode().findIndex(p=>p===state.problems[i])); if(state.selected<0) state.selected=0; state.reveal=false; save(); render(); }
+function setMode(mode){ state.mode=mode; state.reveal=false; save(); render(); }
+function setStatus(s){ const p=activeProblem(); const idx=state.problems.indexOf(p); state.problems[idx].status=s; state.reveal=true; save(); triggerFlash(s==='fixed'?'green':s==='notfixed'?'red':'gold'); render(); }
+function moveProblem(dir){ const p = activeProblem(); const i = state.problems.indexOf(p); const j = i + dir; if(j<0||j>=state.problems.length) return; [state.problems[i],state.problems[j]]=[state.problems[j],state.problems[i]]; save(); render(); }
+function next(){ const ep=episode(); state.selected = Math.min(ep.length-1, state.selected+1); state.reveal=false; save(); triggerFlash('gold'); render(); }
+function prev(){ state.selected = Math.max(0, state.selected-1); state.reveal=false; save(); triggerFlash('gold'); render(); }
+function addProblem(){ state.problems.push({title:'New Problem',stat:'0',label:'Stat',rank:'NFL Rank',severity:'Critical issue',status:'pending',included:true,evidence:['Evidence item']}); state.selected=episode().length-1; save(); render(); }
+function delProblem(){ if(state.problems.length<=1) return; const p=activeProblem(); const i=state.problems.indexOf(p); state.problems.splice(i,1); state.selected=0; save(); render(); }
+function reset(){ if(confirm('Reset to default problems?')){ state={ problems: DEFAULTS, selected:0, mode:'setup', reveal:false, clean:false }; save(); render(); } }
+function renderSetup(){ const p = activeProblem(); const idx = state.problems.indexOf(p); app.innerHTML = `<div class="app">
+  <div class="topbar"><div class="brand"><div class="logo">SF</div><div>49ERS FIX TRACKER<small>BROADCAST PRODUCTION TOOL</small></div></div><div><button class="btn ghost" onclick="reset()">RESET DEFAULTS</button> <button class="btn primary" onclick="setMode('stage')">LAUNCH PRESENTATION</button></div></div>
+  <section class="hero-row"><div><div class="eyebrow">PRODUCER SETUP</div><h1 class="page-title">CONTROL ROOM</h1><div class="subtitle">Build the episode. The audience only sees the clean fullscreen graphics.</div></div><div class="score-mini"><b>${fixedCount()} / ${episode().length}</b><span>PROBLEMS FIXED</span></div></section>
+  <section class="setup-grid"><div class="panel">
+    <div class="include">INCLUDE IN THIS EPISODE <input type="checkbox" ${p.included?'checked':''} onchange="updateProblem(${idx},'included',this.checked)"></div>
+    <div class="form-grid">
+      <div><label>Problem Title</label><input value="${p.title}" oninput="updateProblem(${idx},'title',this.value)"></div>
+      <div><label>Main Stat</label><input value="${p.stat}" oninput="updateProblem(${idx},'stat',this.value)"></div>
+      <div><label>Stat Label</label><input value="${p.label}" oninput="updateProblem(${idx},'label',this.value)"></div>
+      <div><label>NFL Rank</label><input value="${p.rank}" oninput="updateProblem(${idx},'rank',this.value)"></div>
+      <div><label>Status</label><select onchange="updateProblem(${idx},'status',this.value)"><option value="fixed" ${p.status==='fixed'?'selected':''}>Fixed</option><option value="pending" ${p.status==='pending'?'selected':''}>Pending</option><option value="notfixed" ${p.status==='notfixed'?'selected':''}>Not Fixed</option></select></div>
+      <div><label>Severity Line</label><input value="${p.severity}" oninput="updateProblem(${idx},'severity',this.value)"></div>
+      <div class="span2"><label>Evidence Bullets — one per line</label><textarea oninput="updateProblem(${idx},'evidence',this.value.split('\n').filter(Boolean))">${p.evidence.join('\n')}</textarea></div>
     </div>
-  </section>`;
+    <div class="row-actions"><button class="btn" onclick="addProblem()">ADD PROBLEM</button><button class="btn" onclick="delProblem()">DELETE</button><button class="btn" onclick="moveProblem(-1)">MOVE UP</button><button class="btn" onclick="moveProblem(1)">MOVE DOWN</button></div>
+    <div class="problem-list">${state.problems.map((x,i)=>`<button class="mini-card ${x===p?'active':''}" onclick="selectProblem(${i})"><span class="num">${i+1}</span><span><span class="mini-title">${x.title}</span><span class="mini-meta">${x.stat} ${x.label} · ${x.rank}</span></span><span class="badge ${clsStatus(x.status)}">${statusText(x.status)}</span></button>`).join('')}</div>
+  </div><div class="panel help-panel"><div class="eyebrow">RECORDING SHORTCUTS</div><div class="help-title">PRESENTATION<br>CONTROLS</div><p><span class="key">Space</span> next &nbsp; <span class="key">←</span>/<span class="key">→</span> move</p><p><span class="key">B</span> board &nbsp; <span class="key">V</span> verdict &nbsp; <span class="key">M</span> controls</p><p><span class="key">C</span> clean mode &nbsp; <span class="key">H</span> hide controls</p><div class="note">Use Chrome fullscreen before recording. Hover the far-left edge to bring back hidden controls.</div></div></section></div>`;
 }
-
-function renderProblem(){
-  const list = activeProblems();
-  if(!list.length){ mode='setup'; render(); return; }
-  current = Math.max(0, Math.min(current, list.length-1));
-  const p = list[current];
-  const evidenceClass = reveal ? 'show' : '';
-  app.innerHTML = `${controls()}<section class="stage problem-stage ${clean?'clean':''}">
-    <div class="broadcast-bg"></div>
-    <div class="progress-meter"><b>${current+1}</b><span>of</span><b>${list.length}</b></div>
-    <div class="presentation-card ${cls(p.status)}">
-      <div class="card-left">
-        <div class="issue-tag">2025 Critical Issue</div>
-        <h1>${p.title}</h1>
-        <div class="stat-row"><div class="main-stat">${p.stat}</div><div><div class="stat-label">${p.label}</div><div class="rank">${p.rank}</div></div></div>
-        <div class="severity">${p.severity}</div>
-      </div>
-      <div class="card-right">
-        <div class="question">Was it fixed?</div>
-        <div class="status-lock ${cls(p.status)}"><span>${sym(p.status)}</span><b>${label(p.status)}</b></div>
-        <div class="verdict-buttons">
-          <button onclick="setStatus('fixed')">👍 Yes / Fixed</button>
-          <button onclick="setStatus('pending')">● Pending</button>
-          <button onclick="setStatus('notfixed')">👎 No / Not Fixed</button>
-        </div>
-        <button class="reveal-btn" onclick="reveal=!reveal;renderProblem()">${reveal?'Hide':'Reveal'} Evidence</button>
-        <div class="evidence ${evidenceClass}"><div class="evidence-title">${label(p.status)} — Why</div><ul>${p.evidence.map((e,i)=>`<li style="--i:${i}">✓ ${e}</li>`).join('')}</ul></div>
-      </div>
-    </div>
-  </section>`;
-}
-
-function setStatus(s){ activeProblems()[current].status = s; save(); reveal=true; renderProblem(); }
-function next(){
-  const list=activeProblems();
-  if(mode==='setup'){ launch(); return; }
-  if(mode==='board'){ mode='problem'; current=0; reveal=false; render(); return; }
-  if(mode==='problem' && current < list.length-1){ current++; reveal=false; render(); return; }
-  mode='board'; reveal=false; render();
-}
-function prev(){ if(mode==='problem' && current>0){ current--; reveal=false; render(); } else { mode='board'; reveal=false; render(); } }
-
-document.addEventListener('keydown', e => {
-  if(e.key === ' ' || e.key === 'ArrowRight'){ e.preventDefault(); next(); }
-  if(e.key === 'ArrowLeft') prev();
-  if(e.key.toLowerCase() === 'b'){ mode='board'; reveal=false; render(); }
-  if(e.key.toLowerCase() === 'v'){ mode='board'; reveal=false; render(); }
-  if(e.key.toLowerCase() === 'm'){ drawer=!drawer; render(); }
-  if(e.key.toLowerCase() === 'h'){ drawer=false; render(); }
-  if(e.key.toLowerCase() === 'c'){ clean=!clean; render(); }
-  if(/[1-9]/.test(e.key)){ const n=Number(e.key)-1; if(n < activeProblems().length){ current=n; mode='problem'; reveal=false; render(); } }
-});
-
+function renderStage(){ const ep=episode(); const p=activeProblem(); const cardCls = state.reveal ? clsStatus(p.status) : ''; app.innerHTML = `<div class="stage ${state.clean?'clean':''}"><div class="progress"><b>${state.selected+1}/${ep.length}</b><span>PROBLEM</span></div><div class="broadcast-card ${cardCls}"><section class="left"><span class="issue-label">2025 CRITICAL ISSUE</span><h1 class="issue-title">${p.title.toUpperCase()}</h1><div class="statline"><div class="stat-number" data-target="${p.stat}">${p.stat}</div><div class="stat-side"><div class="label">${p.label.toUpperCase()}</div><div class="rank">${p.rank.toUpperCase()}</div></div></div><div class="severity">${p.severity.toUpperCase()}</div></section><section class="right"><div class="question">WAS IT FIXED?</div>${state.reveal?`<div class="status-lock ${clsStatus(p.status)}">${statusIcon(p.status)} ${statusText(p.status)}</div>`:''}<div class="verdict-buttons"><button class="choice" onclick="setStatus('fixed')">👍 YES / FIXED</button><button class="choice" onclick="setStatus('pending')">● PENDING</button><button class="choice" onclick="setStatus('notfixed')">👎 NO / NOT FIXED</button></div><button class="reveal-btn" onclick="state.reveal=true;save();render();">REVEAL EVIDENCE</button>${state.reveal?`<div class="evidence">${p.evidence.map(e=>`<div class="evidence-item">✓ ${e}</div>`).join('')}</div>`:''}</section></div>${controls()}</div>`; animateNumber(); }
+function controls(){ return `<div class="hidden-controls"><div class="drawer"><button onclick="setMode('setup')">Setup</button><button onclick="setMode('board')">Board</button><button onclick="prev()">Prev</button><button onclick="next()">Next</button><button onclick="state.clean=!state.clean;save();render();">Clean</button></div></div>`; }
+function renderBoard(){ const ep=episode(); app.innerHTML = `<div class="board"><div class="board-head"><div class="board-kicker">2025 PROBLEM FIX TRACKER</div><div class="board-score"><span class="red" id="scoreCount">${fixedCount()}</span> / ${ep.length}</div><div class="board-title">PROBLEMS FIXED</div><div class="board-sub">ROSTER MOVES WERE MADE. PRODUCTION WILL TELL THE STORY.</div></div><div class="tile-grid">${ep.map((p,i)=>`<button class="tile ${clsStatus(p.status)}" onclick="state.selected=${i};setMode('stage')"><span class="big-num">${String(i+1).padStart(2,'0')}</span><h3>${p.title.toUpperCase()}</h3><p>${p.stat} ${p.label} · ${p.rank}</p><span class="badge tile-badge ${clsStatus(p.status)}">${statusIcon(p.status)} ${statusText(p.status)}</span></button>`).join('')}</div><div class="footer-line">CLICK ANY PROBLEM TO OPEN THE FULL-SCREEN BROADCAST CARD</div>${controls()}</div>`; animateScore(); }
+function animateNumber(){ const el=document.querySelector('.stat-number'); if(!el) return; const target=parseFloat(el.dataset.target); if(isNaN(target)) return; const decimals = String(el.dataset.target).includes('.') ? 2 : 0; let start=null; const dur=520; function step(ts){ if(!start) start=ts; const p=Math.min(1,(ts-start)/dur); const eased=1-Math.pow(1-p,3); el.textContent=(target*eased).toFixed(decimals).replace(/\.00$/,''); if(p<1) requestAnimationFrame(step); } requestAnimationFrame(step); }
+function animateScore(){ const el=document.getElementById('scoreCount'); if(!el) return; const target=fixedCount(); let start=null; function step(ts){ if(!start) start=ts; const p=Math.min(1,(ts-start)/700); el.textContent=Math.round(target*(1-Math.pow(1-p,3))); if(p<1) requestAnimationFrame(step); } requestAnimationFrame(step); }
+function render(){ if(state.mode==='stage') renderStage(); else if(state.mode==='board') renderBoard(); else renderSetup(); }
+document.addEventListener('keydown', e=>{ if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)) return; if(e.code==='Space'){ e.preventDefault(); if(state.mode==='stage' && !state.reveal){ state.reveal=true; save(); render(); } else next(); } if(e.key==='ArrowRight') next(); if(e.key==='ArrowLeft') prev(); if(e.key.toLowerCase()==='b') setMode('board'); if(e.key.toLowerCase()==='v') setMode('board'); if(e.key.toLowerCase()==='m') setMode('setup'); if(e.key.toLowerCase()==='c'){ state.clean=!state.clean; save(); render(); } if(e.key.toLowerCase()==='h'){ state.clean=true; save(); render(); } });
 render();
