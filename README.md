@@ -1,19 +1,23 @@
 # 49ers Fix Tracker
 
-A free, static, video-production web app for presenting 49ers problem/fix verdicts.
+Free static website for producing YouTube-ready 49ers offseason verdict graphics.
 
-## Run locally
-Open `index.html` in a browser.
+Open `index.html` directly or deploy the folder to GitHub Pages/Vercel as a static site.
 
-## Free hosting
-Upload this folder to GitHub, then import the repo into Vercel.
+Episode save/load:
 
-## Controls
-- Space / Right Arrow: next
-- Left Arrow: previous
-- B: board
-- 1-6: jump to a problem
-- M: show/hide hidden controls
-- H: hide controls
+- Changes autosave in the browser.
+- `Export JSON` downloads a backup episode file.
+- `Import JSON` loads a previously exported episode file.
 
-Data saves in your browser with localStorage.
+Keyboard:
+
+- `S` opens Studio Mode
+- `Space` reveals the full evidence panel, then advances to the next included problem
+- `B` opens the Verdict Board
+- `V` shows the on-air verdict picker
+- `M` returns to Control Room
+- `P` marks the current problem Pending
+- `F` marks the current problem Fixed
+- `N` marks the current problem Not Fixed
+- `1` marks Fixed, `2` marks Pending, `3` marks Not Fixed

@@ -1,14 +1,130 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>49ers Fix Tracker</title>
-  <link rel="stylesheet" href="styles.css" />
-</head>
-<body>
-  <div class="app-bg"></div>
-  <div id="app"></div>
-  <script src="app.js"></script>
-</body>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>49ers Fix Tracker</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body class="theme-classic motion-low layout-standard bg-clean" data-mode="control">
+    <main class="app-shell">
+      <section class="control-room" aria-label="Control Room">
+        <header class="control-header">
+          <div>
+            <p class="eyebrow">Producer Mode</p>
+            <h1>49ers Fix Tracker</h1>
+          </div>
+          <div class="mode-actions" aria-label="Views">
+            <button class="primary-action" type="button" data-view="studio">Studio</button>
+            <button type="button" data-view="board">Board</button>
+          </div>
+        </header>
+
+        <section class="episode-tools" aria-label="Episode Save and Load">
+          <div>
+            <span>Episode</span>
+            <strong id="saveStatus">Autosaved locally</strong>
+          </div>
+          <div class="episode-actions">
+            <button type="button" id="exportEpisode">Export JSON</button>
+            <button type="button" id="importEpisode">Import JSON</button>
+            <input id="episodeFileInput" type="file" accept="application/json,.json" hidden>
+          </div>
+        </section>
+
+        <section class="settings-grid" aria-label="Studio Settings">
+          <label>
+            <span>Motion Profile</span>
+            <select id="motionSetting">
+              <option value="off">Off</option>
+              <option value="low" selected>Low</option>
+              <option value="cinematic">Cinematic</option>
+            </select>
+          </label>
+          <label>
+            <span>Theme</span>
+            <select id="themeSetting">
+              <option value="classic" selected>49ers Classic</option>
+              <option value="espn">ESPN Broadcast</option>
+              <option value="films">NFL Films</option>
+              <option value="keynote">Apple Keynote</option>
+            </select>
+          </label>
+          <label>
+            <span>Card Layout</span>
+            <select id="layoutSetting">
+              <option value="standard" selected>Standard</option>
+              <option value="hero-stat">Hero Stat</option>
+              <option value="verdict-first">Verdict First</option>
+            </select>
+          </label>
+          <label>
+            <span>Background</span>
+            <select id="backgroundSetting">
+              <option value="clean" selected>Clean Studio</option>
+              <option value="broadcast">Broadcast Studio</option>
+              <option value="films">NFL Films</option>
+            </select>
+          </label>
+        </section>
+
+        <section class="problem-editor" aria-label="Problem Editor">
+          <div class="editor-toolbar">
+            <h2>Episode Problems</h2>
+            <button type="button" id="resetDefaults">Reset Defaults</button>
+          </div>
+          <div id="problemList" class="problem-list"></div>
+        </section>
+      </section>
+
+      <section class="stage" aria-live="polite">
+        <div class="stage-bg" aria-hidden="true"></div>
+        <div class="stage-light stage-light-left" aria-hidden="true"></div>
+        <div class="stage-light stage-light-right" aria-hidden="true"></div>
+
+        <section class="studio-card floating-card" id="studioCard" aria-label="Studio Presentation">
+          <div class="verdict-chip" id="studioVerdict"></div>
+          <p class="kicker">Did the 49ers fix it?</p>
+          <div class="studio-main">
+            <div class="problem-copy">
+              <p class="rank" id="studioRank"></p>
+              <h2 id="studioTitle"></h2>
+            </div>
+            <div class="stat-lockup">
+              <p class="stat" id="studioStat"></p>
+              <p class="stat-label">2025 baseline</p>
+            </div>
+          </div>
+          <div class="evidence-panel" id="evidencePanel">
+            <p>Evidence</p>
+            <ul id="studioEvidence"></ul>
+          </div>
+          <div class="verdict-picker" id="verdictPicker" aria-label="Verdict Picker">
+            <button type="button" class="verdict-option option-fixed" data-status="Fixed">
+              <span class="option-number">1</span>
+              <span>Fixed</span>
+            </button>
+            <button type="button" class="verdict-option option-pending" data-status="Pending">
+              <span class="option-number">2</span>
+              <span>Pending</span>
+            </button>
+            <button type="button" class="verdict-option option-not-fixed" data-status="Not Fixed">
+              <span class="option-number">3</span>
+              <span>Not Fixed</span>
+            </button>
+          </div>
+        </section>
+
+        <section class="verdict-board floating-card" id="verdictBoard" aria-label="Verdict Board">
+          <header>
+            <p class="kicker">Did the 49ers fix it?</p>
+            <h2 id="fixedScore">0/6 Problems Fixed</h2>
+          </header>
+          <div id="boardGrid" class="board-grid"></div>
+        </section>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
 </html>

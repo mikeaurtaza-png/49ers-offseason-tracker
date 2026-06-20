@@ -1,213 +1,523 @@
-const defaults = [
-  { title:'Pass Rush', stat:'20', label:'Sacks', rank:'32nd NFL', severity:'Worst in the NFL', status:'pending', include:true, evidence:['Osa Odighizuwa added','Romelo Height drafted','Grayson Halton drafted','More interior rush depth'] },
-  { title:'Interceptions', stat:'6', label:'INTs Forced', rank:'32nd NFL', severity:'Dead last takeaway production', status:'pending', include:true, evidence:['Still needs proven ball production','Secondary must create more plays'] },
-  { title:'Red Zone D', stat:'29', label:'TDs Allowed', rank:'Worst NFL', severity:'Could not finish drives defensively', status:'pending', include:true, evidence:['Front seven rebuilt','Must prove it inside the 20'] },
-  { title:'Run Game', stat:'3.78', label:'Yards/Carry', rank:'30th NFL', severity:'Inefficient rushing attack', status:'pending', include:true, evidence:['Kaelon Black added','More OL competition','Needs explosive-run rebound'] },
-  { title:'Turnovers', stat:'23', label:'Giveaways', rank:'27th NFL', severity:'Too many empty possessions', status:'notfixed', include:true, evidence:['Decision-making must improve','Ball security is not solved on paper'] },
-  { title:'Penalties', stat:'106', label:'Penalties', rank:'3rd Most', severity:'Self-inflicted damage', status:'notfixed', include:true, evidence:['Discipline must improve','Cannot be fully fixed by roster moves'] }
+const DEFAULT_PROBLEMS = [
+  {
+    title: "Pass Rush",
+    stat: "20 sacks",
+    rank: "32nd NFL",
+    status: "Pending",
+    included: true,
+    evidence: ["Osa Odighizuwa added", "Romelo Height drafted", "Grayson Halton drafted"]
+  },
+  {
+    title: "Interceptions",
+    stat: "6 INTs forced",
+    rank: "32nd NFL",
+    status: "Pending",
+    included: true,
+    evidence: ["Secondary turnover production must rebound", "Pressure-to-takeaway pipeline still unproven"]
+  },
+  {
+    title: "Red Zone D",
+    stat: "29 TDs allowed",
+    rank: "Worst NFL",
+    status: "Pending",
+    included: true,
+    evidence: ["Short-field defense remains the swing category", "Personnel changes need proof near the goal line"]
+  },
+  {
+    title: "Run Game",
+    stat: "3.78 yards/carry",
+    rank: "30th NFL",
+    status: "Pending",
+    included: true,
+    evidence: ["Efficiency must return on early downs", "Blocking cohesion is the first checkpoint"]
+  },
+  {
+    title: "Turnovers",
+    stat: "23 giveaways",
+    rank: "27th NFL",
+    status: "Not Fixed",
+    included: true,
+    evidence: ["Ball security is not fixed by roster additions alone", "Quarterback and skill-player execution must change"]
+  },
+  {
+    title: "Penalties",
+    stat: "106 penalties",
+    rank: "3rd most",
+    status: "Not Fixed",
+    included: true,
+    evidence: ["Discipline has to show up weekly", "Pre-snap and situational flags are the tell"]
+  }
 ];
 
-const defaultSettings = {
-  motion:'cinematic',
-  theme:'49ers',
-  layout:'standard',
-  background:'broadcast'
+const STORAGE_KEY = "49ers-fix-tracker-episode-v1";
+
+let state = {
+  problems: structuredClone(DEFAULT_PROBLEMS),
+  selectedIndex: 0,
+  evidenceVisible: false,
+  verdictPickerVisible: false,
+  settings: {
+    motion: "low",
+    theme: "classic",
+    layout: "standard",
+    background: "clean"
+  }
 };
 
-let problems = JSON.parse(localStorage.getItem('fixTrackerProblemsV5') || localStorage.getItem('fixTrackerProblemsV2') || localStorage.getItem('fixTrackerProblems') || 'null') || defaults;
-problems = problems.map(p => ({ include:true, severity:'Critical issue', evidence:[], ...p }));
-let settings = { ...defaultSettings, ...(JSON.parse(localStorage.getItem('fixTrackerSettingsV5') || 'null') || {}) };
-let mode = 'setup';
-let current = 0;
-let editing = 0;
-let drawer = false;
-let clean = false;
-let studio = false;
-let reveal = false;
-let verdictShown = false;
-let flash = '';
-const app = document.getElementById('app');
-
-const activeProblems = () => problems.filter(p => p.include !== false);
-const save = () => localStorage.setItem('fixTrackerProblemsV5', JSON.stringify(problems));
-const saveSettings = () => localStorage.setItem('fixTrackerSettingsV5', JSON.stringify(settings));
-const cls = s => s === 'fixed' ? 'fixed' : s === 'pending' ? 'pending' : 'notfixed';
-const label = s => s === 'fixed' ? 'Fixed' : s === 'pending' ? 'Pending' : 'Not Fixed';
-const fixedCount = () => activeProblems().filter(p => p.status === 'fixed').length;
-const motionClass = () => `motion-${settings.motion}`;
-const themeClass = () => `theme-${settings.theme} bg-${settings.background}`;
-const vector = s => {
-  if (s === 'fixed') return `<span class="token fixed-token" aria-hidden="true"><svg viewBox="0 0 64 64"><path class="shield" d="M32 4l22 8v17c0 15-9 25-22 31C19 54 10 44 10 29V12l22-8z"/><path class="check" d="M20 32l8 8 17-19"/></svg></span>`;
-  if (s === 'pending') return `<span class="token pending-token" aria-hidden="true"><span></span></span>`;
-  return `<span class="token notfixed-token" aria-hidden="true"><svg viewBox="0 0 64 64"><path class="slash" d="M13 45L45 13l6 6-32 32z"/><path class="slash2" d="M19 13l32 32-6 6-32-32z"/></svg></span>`;
+const problemList = document.querySelector("#problemList");
+const studioCard = document.querySelector("#studioCard");
+const studioTitle = document.querySelector("#studioTitle");
+const studioStat = document.querySelector("#studioStat");
+const studioRank = document.querySelector("#studioRank");
+const studioVerdict = document.querySelector("#studioVerdict");
+const studioEvidence = document.querySelector("#studioEvidence");
+const evidencePanel = document.querySelector("#evidencePanel");
+const verdictPicker = document.querySelector("#verdictPicker");
+const fixedScore = document.querySelector("#fixedScore");
+const boardGrid = document.querySelector("#boardGrid");
+const saveStatus = document.querySelector("#saveStatus");
+const episodeFileInput = document.querySelector("#episodeFileInput");
+const settingInputs = {
+  motion: document.querySelector("#motionSetting"),
+  theme: document.querySelector("#themeSetting"),
+  layout: document.querySelector("#layoutSetting"),
+  background: document.querySelector("#backgroundSetting")
 };
 
-function render(){
-  document.body.className = `${motionClass()} ${themeClass()} ${studio ? 'studio-on' : ''} ${flash}`;
-  if(mode === 'setup') renderSetup();
-  if(mode === 'board') renderBoard();
-  if(mode === 'problem') renderProblem();
-  if(flash){ setTimeout(()=>{ flash=''; document.body.className = `${motionClass()} ${themeClass()} ${studio ? 'studio-on' : ''}`; }, 520); }
+function episodePayload() {
+  return {
+    version: 1,
+    savedAt: new Date().toISOString(),
+    problems: state.problems,
+    selectedIndex: state.selectedIndex,
+    settings: state.settings
+  };
 }
 
-function esc(v){ return String(v ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;'); }
-function field(l,k,v){ return `<div class="stack"><div class="label">${l}</div><input value="${esc(v)}" onchange="updateField('${k}',this.value)"></div>`; }
-
-function renderSetup(){
-  const p = problems[editing] || problems[0];
-  app.innerHTML = `
-    <section class="control-room">
-      <div class="control-top">
-        <div class="brand"><div class="mark">SF</div><div><b>49ers Fix Tracker</b><span>Broadcast Production Tool</span></div></div>
-        <div class="top-actions"><button class="ghost-btn" onclick="resetData()">Reset Defaults</button><button class="primary-btn" onclick="launch()">Launch Presentation</button></div>
-      </div>
-      <div class="control-hero">
-        <div><div class="eyebrow">Producer setup</div><h1>Control Room</h1><p>Build the episode. The audience only sees the clean fullscreen graphics.</p></div>
-        <div class="score-chip"><b>${fixedCount()} / ${activeProblems().length}</b><span>Problems Fixed</span></div>
-      </div>
-      <div class="control-grid">
-        <div class="panel editor-panel">
-          <div class="issue-editor">
-            <label class="include-row"><input type="checkbox" ${p.include!==false?'checked':''} onchange="toggleInclude(this.checked)"> Include in this episode</label>
-            ${field('Problem Title','title',p.title)}${field('Main Stat','stat',p.stat)}${field('Stat Label','label',p.label)}${field('NFL Rank','rank',p.rank)}
-            <div class="stack"><div class="label">Status</div><select onchange="updateField('status',this.value)"><option value="fixed" ${p.status==='fixed'?'selected':''}>Fixed</option><option value="pending" ${p.status==='pending'?'selected':''}>Pending</option><option value="notfixed" ${p.status==='notfixed'?'selected':''}>Not Fixed</option></select></div>
-            ${field('Severity Line','severity',p.severity)}
-            <div class="stack evidence-edit"><div class="label">Evidence Bullets — one per line</div><textarea onchange="updateEvidence(this.value)">${p.evidence.map(esc).join('\n')}</textarea></div>
-            <div class="editor-actions"><button class="ghost-btn" onclick="addProblem()">Add Problem</button><button class="danger-btn" onclick="deleteProblem()">Delete</button><button class="ghost-btn" onclick="move(-1)">Move Up</button><button class="ghost-btn" onclick="move(1)">Move Down</button></div>
-          </div>
-          <div class="issue-list">${problems.map((x,i)=>`<div class="mini-card ${i===editing?'active':''} ${x.include===false?'off':''} ${cls(x.status)}" onclick="editing=${i};render()"><div class="handle">${i+1}</div><div><div class="mini-title">${esc(x.title)}</div><div class="mini-sub">${esc(x.stat)} ${esc(x.label)} · ${esc(x.rank)}</div></div><span class="badge ${cls(x.status)}">${label(x.status)}</span></div>`).join('')}</div>
-        </div>
-        <div class="side-stack">
-          <div class="panel production-note">
-            <div class="eyebrow">Production controls</div>
-            <h2>Studio Settings</h2>
-            ${settingGroup('Motion Profile','motion',['off','low','cinematic'],['Off','Low','Cinematic'])}
-            ${settingGroup('Theme Preset','theme',['49ers','espn','films','keynote'],['49ers Classic','ESPN Broadcast','NFL Films','Apple Keynote'])}
-            ${settingGroup('Card Layout','layout',['standard','hero','verdict'],['Standard','Hero Stat','Verdict First'])}
-            ${settingGroup('Background','background',['clean','broadcast','films'],['Clean Studio','Broadcast Studio','NFL Films'])}
-          </div>
-          <div class="panel production-note compact">
-            <div class="eyebrow">Recording shortcuts</div>
-            <p><span class="kbd">S</span> studio &nbsp; <span class="kbd">Space</span> evidence / next</p>
-            <p><span class="kbd">Enter</span> verdict &nbsp; <span class="kbd">←</span>/<span class="kbd">→</span> move</p>
-            <p><span class="kbd">B</span> board &nbsp; <span class="kbd">M</span> controls &nbsp; <span class="kbd">Esc</span> exit</p>
-          </div>
-        </div>
-      </div>
-    </section>`;
+function saveEpisode(message = "Autosaved locally") {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(episodePayload()));
+    saveStatus.textContent = message;
+  } catch {
+    saveStatus.textContent = "Autosave unavailable";
+  }
 }
 
-function settingGroup(title,key,values,labels){
-  return `<div class="setting-group"><div class="label">${title}</div><div class="segmented">${values.map((v,i)=>`<button class="${settings[key]===v?'selected':''}" onclick="settings.${key}='${v}';saveSettings();render()">${labels[i]}</button>`).join('')}</div></div>`;
+function loadSavedEpisode() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    applyEpisodePayload(JSON.parse(raw), "Loaded saved episode");
+  } catch {
+    saveStatus.textContent = "Saved episode could not load";
+  }
 }
 
-function updateField(k,v){ problems[editing][k] = v; save(); render(); }
-function updateEvidence(v){ problems[editing].evidence = v.split('\n').map(x=>x.trim()).filter(Boolean); save(); render(); }
-function toggleInclude(v){ problems[editing].include = v; save(); render(); }
-function addProblem(){ problems.push({title:'New Problem',stat:'0',label:'Stat',rank:'Rank',severity:'Why it mattered',status:'pending',include:true,evidence:['Evidence item']}); editing=problems.length-1; save(); render(); }
-function deleteProblem(){ if(problems.length < 2) return; problems.splice(editing,1); editing=Math.max(0,editing-1); save(); render(); }
-function move(d){ const ni=editing+d; if(ni<0||ni>=problems.length)return; [problems[editing],problems[ni]]=[problems[ni],problems[editing]]; editing=ni; save(); render(); }
-function resetData(){ problems=structuredClone(defaults); editing=0; current=0; save(); render(); }
-function launch(){ mode='board'; current=0; reveal=false; verdictShown=false; render(); }
+function applyEpisodePayload(payload, message = "Episode loaded") {
+  if (!payload || !Array.isArray(payload.problems)) {
+    throw new Error("Invalid episode file");
+  }
 
-function controls(){
-  if(studio) return `<div class="studio-corner">STUDIO MODE</div>`;
-  return `<div class="edge-hotspot" onmouseenter="drawer=true;render()"></div><div class="drawer ${drawer?'show':''}" onmouseleave="drawer=false;render()"><button class="ghost-btn" onclick="mode='setup';render()">Setup</button><button class="ghost-btn" onclick="mode='board';render()">Board</button><button class="ghost-btn" onclick="prev()">Prev</button><button class="primary-btn" onclick="next()">Next</button><button class="ghost-btn" onclick="studio=!studio;render()">Studio</button><button class="ghost-btn" onclick="clean=!clean;render()">Clean</button></div>`;
+  state.problems = payload.problems.map((problem, index) => ({
+    title: String(problem.title || DEFAULT_PROBLEMS[index]?.title || "Problem"),
+    stat: String(problem.stat || DEFAULT_PROBLEMS[index]?.stat || ""),
+    rank: String(problem.rank || DEFAULT_PROBLEMS[index]?.rank || ""),
+    status: ["Fixed", "Pending", "Not Fixed"].includes(problem.status) ? problem.status : "Pending",
+    included: Boolean(problem.included),
+    evidence: Array.isArray(problem.evidence) ? problem.evidence.map(String) : []
+  }));
+  state.selectedIndex = Number.isInteger(payload.selectedIndex) ? payload.selectedIndex : 0;
+  state.evidenceVisible = false;
+  state.verdictPickerVisible = false;
+
+  if (payload.settings && typeof payload.settings === "object") {
+    state.settings = {
+      motion: ["off", "low", "cinematic"].includes(payload.settings.motion) ? payload.settings.motion : "low",
+      theme: ["classic", "espn", "films", "keynote"].includes(payload.settings.theme) ? payload.settings.theme : "classic",
+      layout: ["standard", "hero-stat", "verdict-first"].includes(payload.settings.layout) ? payload.settings.layout : "standard",
+      background: ["clean", "broadcast", "films"].includes(payload.settings.background) ? payload.settings.background : "clean"
+    };
+  }
+
+  syncSettingsInputs();
+  applySettings();
+  renderProblemEditor();
+  renderStage();
+  saveEpisode(message);
 }
 
-function renderBoard(){
-  const list = activeProblems();
-  app.innerHTML = `${controls()}<section class="stage board-stage ${studio?'studio-stage':''}">
-    <div class="broadcast-bg"></div>
-    <div class="board-wrap">
-      <div class="board-title"><div class="eyebrow">2025 Problem Fix Tracker</div><div class="mega-score"><span class="count-pop">${fixedCount()}</span><i>/</i><span>${list.length}</span></div><h1>Problems Fixed</h1></div>
-      <div class="tile-grid">${list.map((p,i)=>`<button class="tile floating-card ${cls(p.status)}" onclick="current=${i};mode='problem';reveal=false;verdictShown=false;render()"><div class="tile-num">${String(i+1).padStart(2,'0')}</div><div><h2>${esc(p.title)}</h2><div class="tile-stat">${esc(p.stat)} ${esc(p.label)} · ${esc(p.rank)}</div></div><div class="tile-status">${vector(p.status)}<b>${label(p.status)}</b></div></button>`).join('')}</div>
-    </div>
-  </section>`;
-}
-
-function renderProblem(){
-  const list = activeProblems();
-  if(!list.length){ mode='setup'; render(); return; }
-  current = Math.max(0, Math.min(current, list.length-1));
-  const p = list[current];
-  const evidenceClass = reveal ? 'show' : '';
-  const verdictClass = verdictShown ? 'show' : '';
-  app.innerHTML = `${controls()}<section class="stage problem-stage ${clean?'clean':''} ${studio?'studio-stage':''} layout-${settings.layout} status-${cls(p.status)}">
-    <div class="broadcast-bg"></div>
-    <div class="progress-meter"><b>${current+1}</b><span>of</span><b>${list.length}</b></div>
-    <div class="presentation-card floating-card ${cls(p.status)} ${verdictShown?'verdict-active':''}">
-      <div class="card-left">
-        <div class="issue-tag">2025 Critical Issue</div>
-        <h1>${esc(p.title)}</h1>
-        <div class="stat-row"><div class="main-stat counter" data-final="${esc(p.stat)}">${esc(p.stat)}</div><div><div class="stat-label">${esc(p.label)}</div><div class="rank">${esc(p.rank)}</div></div></div>
-        <div class="severity">${esc(p.severity)}</div>
-      </div>
-      <div class="card-right">
-        <div class="question">Current Verdict</div>
-        <div class="status-lock ${cls(p.status)} ${verdictClass}">${vector(p.status)}<b>${label(p.status)}</b></div>
-        <div class="verdict-buttons">
-          <button onclick="setStatus('fixed')">Fixed</button>
-          <button onclick="setStatus('pending')">Pending</button>
-          <button onclick="setStatus('notfixed')">Not Fixed</button>
-        </div>
-        <button class="reveal-btn" onclick="toggleEvidence()">${reveal?'Hide':'Reveal'} Evidence</button>
-        <div class="evidence ${evidenceClass}"><div class="evidence-title">Evidence</div><ul>${p.evidence.map((e)=>`<li>✓ ${esc(e)}</li>`).join('')}</ul></div>
-      </div>
-      <div class="verdict-stamp ${cls(p.status)} ${verdictClass}">${vector(p.status)}<strong>${label(p.status)}</strong></div>
-    </div>
-  </section>`;
-  requestAnimationFrame(()=>animateCounters());
-}
-
-function toggleEvidence(){ reveal=!reveal; renderProblem(); }
-function showVerdict(){ verdictShown = true; reveal = true; const s = activeProblems()[current]?.status; flash = s === 'fixed' ? 'flash-fixed' : s === 'notfixed' ? 'flash-bad' : 'flash-pending'; renderProblem(); }
-function setStatus(s){ activeProblems()[current].status = s; save(); verdictShown=true; reveal=true; flash = s === 'fixed' ? 'flash-fixed' : s === 'notfixed' ? 'flash-bad' : 'flash-pending'; renderProblem(); }
-function next(){
-  const list=activeProblems();
-  if(mode==='setup'){ launch(); return; }
-  if(mode==='board'){ mode='problem'; current=0; reveal=false; verdictShown=false; render(); return; }
-  if(mode==='problem' && current < list.length-1){ current++; reveal=false; verdictShown=false; render(); return; }
-  mode='board'; reveal=false; verdictShown=false; render();
-}
-function smartSpace(){
-  if(mode==='problem' && !reveal){ reveal=true; renderProblem(); return; }
-  next();
-}
-function prev(){ if(mode==='problem' && current>0){ current--; reveal=false; verdictShown=false; render(); } else { mode='board'; reveal=false; verdictShown=false; render(); } }
-
-function animateCounters(){
-  if(settings.motion === 'off') return;
-  document.querySelectorAll('.counter').forEach(el=>{
-    const raw = el.dataset.final || el.textContent;
-    const value = parseFloat(String(raw).replace(/[^0-9.]/g,''));
-    if(Number.isNaN(value)) return;
-    const decimals = String(raw).includes('.') ? 2 : 0;
-    const start = performance.now();
-    const duration = settings.motion === 'low' ? 280 : 520;
-    function frame(t){
-      const p = Math.min(1,(t-start)/duration);
-      const eased = 1 - Math.pow(1-p, 3);
-      el.textContent = (value*eased).toFixed(decimals).replace(/\.00$/,'');
-      if(p<1) requestAnimationFrame(frame); else el.textContent = raw;
-    }
-    requestAnimationFrame(frame);
+function syncSettingsInputs() {
+  Object.entries(settingInputs).forEach(([key, input]) => {
+    input.value = state.settings[key];
   });
 }
 
-document.addEventListener('keydown', e => {
-  if(e.key === ' '){ e.preventDefault(); smartSpace(); }
-  if(e.key === 'Enter'){ e.preventDefault(); if(mode==='problem') showVerdict(); }
-  if(e.key === 'ArrowRight'){ e.preventDefault(); next(); }
-  if(e.key === 'ArrowLeft') prev();
-  if(e.key.toLowerCase() === 'b'){ mode='board'; reveal=false; verdictShown=false; render(); }
-  if(e.key.toLowerCase() === 'v'){ mode='board'; reveal=false; verdictShown=false; render(); }
-  if(e.key.toLowerCase() === 'm'){ drawer=!drawer; render(); }
-  if(e.key.toLowerCase() === 'h'){ drawer=false; render(); }
-  if(e.key.toLowerCase() === 'c'){ clean=!clean; render(); }
-  if(e.key.toLowerCase() === 's'){ studio=!studio; drawer=false; render(); }
-  if(e.key === 'Escape'){ if(studio){studio=false; render();} else if(mode!=='setup'){mode='setup'; render();} }
-  if(/[1-9]/.test(e.key)){ const n=Number(e.key)-1; if(n < activeProblems().length){ current=n; mode='problem'; reveal=false; verdictShown=false; render(); } }
+function exportEpisode() {
+  const blob = new Blob([JSON.stringify(episodePayload(), null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `49ers-fix-tracker-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  saveStatus.textContent = "Episode exported";
+}
+
+function includedProblems() {
+  return state.problems.filter((problem) => problem.included);
+}
+
+function selectedProblem() {
+  const included = includedProblems();
+  if (!included.length) return state.problems[0];
+  return included[state.selectedIndex % included.length];
+}
+
+function setSelectedStatus(status) {
+  const problem = selectedProblem();
+  if (!problem) return;
+  problem.status = status;
+  state.verdictPickerVisible = false;
+  renderProblemEditor();
+  renderStage();
+  saveEpisode();
+}
+
+function toggleVerdictPicker(forceVisible) {
+  if (document.body.dataset.mode !== "studio") {
+    setMode("studio");
+  }
+  state.verdictPickerVisible = typeof forceVisible === "boolean" ? forceVisible : !state.verdictPickerVisible;
+  if (state.verdictPickerVisible) {
+    state.evidenceVisible = false;
+  }
+  renderStage();
+}
+
+function statusClass(status) {
+  if (status === "Fixed") return "status-fixed";
+  if (status === "Not Fixed") return "status-not-fixed";
+  return "status-pending";
+}
+
+function textSize(value, mediumAt, compactAt) {
+  const length = String(value).replace(/\s+/g, "").length;
+  if (length >= compactAt) return "compact";
+  if (length >= mediumAt) return "medium";
+  return "normal";
+}
+
+function formatStatParts(value) {
+  const manualParts = String(value).split("|").map((part) => part.trim()).filter(Boolean);
+  if (manualParts.length > 1) return manualParts.slice(0, 3);
+
+  const parts = String(value).trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 3 && /^[\d.]+$/.test(parts[0])) {
+    return [`${parts[0]} ${parts[1]}`, parts.slice(2).join(" ")];
+  }
+  if (parts.length === 2 && /^[\d.]+$/.test(parts[0])) {
+    return parts;
+  }
+  return [String(value)];
+}
+
+function applySettings() {
+  document.body.classList.remove(
+    "motion-off",
+    "motion-low",
+    "motion-cinematic",
+    "theme-classic",
+    "theme-espn",
+    "theme-films",
+    "theme-keynote",
+    "layout-standard",
+    "layout-hero-stat",
+    "layout-verdict-first",
+    "bg-clean",
+    "bg-broadcast",
+    "bg-films"
+  );
+
+  document.body.classList.add(
+    `motion-${state.settings.motion}`,
+    `theme-${state.settings.theme}`,
+    `layout-${state.settings.layout}`,
+    `bg-${state.settings.background}`
+  );
+}
+
+function setMode(mode) {
+  if (document.activeElement && document.activeElement !== document.body) {
+    document.activeElement.blur();
+  }
+  document.body.dataset.mode = mode;
+  if (mode === "studio") {
+    state.evidenceVisible = false;
+    state.verdictPickerVisible = false;
+  }
+  renderStage();
+}
+
+function renderProblemEditor() {
+  problemList.innerHTML = "";
+
+  state.problems.forEach((problem, index) => {
+    const item = document.createElement("article");
+    item.className = `problem-item${problem.included ? "" : " excluded"}`;
+    item.innerHTML = `
+      <div class="problem-controls">
+        <button type="button" data-action="up" data-index="${index}" aria-label="Move ${problem.title} up">↑</button>
+        <button type="button" data-action="down" data-index="${index}" aria-label="Move ${problem.title} down">↓</button>
+      </div>
+      <div class="problem-fields">
+        <label class="field include">
+          <input type="checkbox" data-field="included" data-index="${index}" ${problem.included ? "checked" : ""}>
+          <span>Include</span>
+        </label>
+        <label class="field title">
+          <span>Problem Title</span>
+          <input value="${escapeAttribute(problem.title)}" data-field="title" data-index="${index}">
+        </label>
+        <label class="field stat">
+          <span>Stat</span>
+          <input value="${escapeAttribute(problem.stat)}" data-field="stat" data-index="${index}">
+        </label>
+        <label class="field rank">
+          <span>Rank</span>
+          <input value="${escapeAttribute(problem.rank)}" data-field="rank" data-index="${index}">
+        </label>
+        <label class="field status">
+          <span>Status</span>
+          <select data-field="status" data-index="${index}">
+            ${["Fixed", "Pending", "Not Fixed"].map((status) => `<option value="${status}" ${problem.status === status ? "selected" : ""}>${status}</option>`).join("")}
+          </select>
+        </label>
+        <label class="field evidence">
+          <span>Evidence Bullets</span>
+          <textarea data-field="evidence" data-index="${index}">${escapeText(problem.evidence.join("\n"))}</textarea>
+        </label>
+      </div>
+    `;
+    problemList.appendChild(item);
+  });
+}
+
+function renderStage() {
+  const problem = selectedProblem();
+  if (!problem) return;
+  const statParts = formatStatParts(problem.stat);
+
+  studioTitle.textContent = problem.title;
+  studioStat.innerHTML = statParts.map((part) => `<span class="stat-line">${escapeText(part)}</span>`).join("");
+  studioRank.textContent = problem.rank;
+  studioCard.dataset.titleSize = textSize(problem.title, 9, 12);
+  studioCard.dataset.statSize = statSizeForParts(statParts);
+  studioCard.dataset.statLines = String(statParts.length);
+  studioCard.dataset.statManual = String(problem.stat.includes("|"));
+  studioCard.dataset.verdict = statusClass(problem.status).replace("status-", "");
+  studioVerdict.textContent = problem.status;
+  studioVerdict.className = `verdict-chip ${statusClass(problem.status)}`;
+  studioEvidence.innerHTML = "";
+  problem.evidence.filter(Boolean).forEach((item) => {
+    const li = document.createElement("li");
+    li.textContent = item;
+    studioEvidence.appendChild(li);
+  });
+
+  evidencePanel.classList.toggle("visible", state.evidenceVisible);
+  verdictPicker.classList.toggle("visible", state.verdictPickerVisible);
+  verdictPicker.querySelectorAll("[data-status]").forEach((button) => {
+    button.classList.toggle("selected", button.dataset.status === problem.status);
+  });
+  studioCard.classList.remove("refresh");
+
+  const fixedCount = state.problems.filter((item) => item.included && item.status === "Fixed").length;
+  const totalCount = state.problems.filter((item) => item.included).length;
+  fixedScore.textContent = `${fixedCount}/${totalCount} Problems Fixed`;
+
+  boardGrid.innerHTML = "";
+  state.problems.filter((item) => item.included).forEach((item) => {
+    const card = document.createElement("article");
+    card.className = "board-card";
+    card.innerHTML = `
+      <span class="board-status ${statusClass(item.status)}">${item.status}</span>
+      <h3>${escapeText(item.title)}</h3>
+      <p>${escapeText(item.stat)} · ${escapeText(item.rank)}</p>
+    `;
+    boardGrid.appendChild(card);
+  });
+}
+
+function statSizeForParts(parts) {
+  const longestLine = parts.reduce((longest, part) => part.length > longest.length ? part : longest, "");
+  const totalLength = parts.join("").length;
+  if (parts.length >= 3 || longestLine.length >= 14 || totalLength >= 24) return "dense";
+  if (longestLine.length >= 11) return "tight";
+  if (longestLine.length >= 10 || totalLength >= 14) return "compact";
+  if (parts.length > 1) return "medium";
+  return "normal";
+}
+
+function updateProblem(index, field, value) {
+  const problem = state.problems[index];
+  if (!problem) return;
+  if (field === "included") {
+    problem.included = value;
+  } else if (field === "evidence") {
+    problem.evidence = value.split("\n").map((item) => item.trim()).filter(Boolean);
+  } else {
+    problem[field] = value;
+  }
+  state.selectedIndex = Math.min(state.selectedIndex, Math.max(includedProblems().length - 1, 0));
+  renderProblemEditor();
+  renderStage();
+  saveEpisode();
+}
+
+function moveProblem(index, direction) {
+  const nextIndex = index + direction;
+  if (nextIndex < 0 || nextIndex >= state.problems.length) return;
+  const [item] = state.problems.splice(index, 1);
+  state.problems.splice(nextIndex, 0, item);
+  renderProblemEditor();
+  renderStage();
+  saveEpisode();
+}
+
+function handleSpacebar() {
+  const mode = document.body.dataset.mode;
+  if (mode !== "studio") return;
+  if (!state.evidenceVisible) {
+    state.evidenceVisible = true;
+  } else {
+    const total = includedProblems().length || 1;
+    state.selectedIndex = (state.selectedIndex + 1) % total;
+    state.evidenceVisible = false;
+  }
+  renderStage();
+}
+
+function escapeAttribute(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
+function escapeText(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
+problemList.addEventListener("input", (event) => {
+  const field = event.target.dataset.field;
+  const index = Number(event.target.dataset.index);
+  if (!field) return;
+  updateProblem(index, field, event.target.value);
 });
 
-render();
+problemList.addEventListener("change", (event) => {
+  const field = event.target.dataset.field;
+  const index = Number(event.target.dataset.index);
+  if (!field) return;
+  const value = field === "included" ? event.target.checked : event.target.value;
+  updateProblem(index, field, value);
+});
+
+problemList.addEventListener("click", (event) => {
+  const action = event.target.dataset.action;
+  const index = Number(event.target.dataset.index);
+  if (action === "up") moveProblem(index, -1);
+  if (action === "down") moveProblem(index, 1);
+});
+
+document.querySelectorAll("[data-view]").forEach((button) => {
+  button.addEventListener("click", () => setMode(button.dataset.view));
+});
+
+document.querySelector("#resetDefaults").addEventListener("click", () => {
+  state.problems = structuredClone(DEFAULT_PROBLEMS);
+  state.selectedIndex = 0;
+  state.evidenceVisible = false;
+  state.verdictPickerVisible = false;
+  renderProblemEditor();
+  renderStage();
+  saveEpisode("Defaults restored");
+});
+
+verdictPicker.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-status]");
+  if (!button) return;
+  setSelectedStatus(button.dataset.status);
+});
+
+Object.entries(settingInputs).forEach(([key, input]) => {
+  input.addEventListener("change", () => {
+    state.settings[key] = input.value;
+    applySettings();
+    saveEpisode();
+  });
+});
+
+document.querySelector("#exportEpisode").addEventListener("click", exportEpisode);
+
+document.querySelector("#importEpisode").addEventListener("click", () => {
+  episodeFileInput.click();
+});
+
+episodeFileInput.addEventListener("change", () => {
+  const file = episodeFileInput.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.addEventListener("load", () => {
+    try {
+      applyEpisodePayload(JSON.parse(String(reader.result)), "Episode imported");
+    } catch {
+      saveStatus.textContent = "Import failed";
+    } finally {
+      episodeFileInput.value = "";
+    }
+  });
+  reader.readAsText(file);
+});
+
+document.addEventListener("keydown", (event) => {
+  const activeTag = document.activeElement.tagName;
+  const isTextEditing = ["INPUT", "TEXTAREA"].includes(activeTag);
+  if (event.code === "Space") {
+    if (isTextEditing || activeTag === "SELECT") return;
+    event.preventDefault();
+    if (state.verdictPickerVisible) {
+      state.verdictPickerVisible = false;
+      renderStage();
+      return;
+    }
+    handleSpacebar();
+  }
+  if (isTextEditing) return;
+  if (event.key.toLowerCase() === "s") setMode("studio");
+  if (event.key.toLowerCase() === "m") setMode("control");
+  if (event.key.toLowerCase() === "b") setMode("board");
+  if (event.key === "1") setSelectedStatus("Fixed");
+  if (event.key === "2") setSelectedStatus("Pending");
+  if (event.key === "3") setSelectedStatus("Not Fixed");
+  if (event.key.toLowerCase() === "p") setSelectedStatus("Pending");
+  if (event.key.toLowerCase() === "f") setSelectedStatus("Fixed");
+  if (event.key.toLowerCase() === "n") setSelectedStatus("Not Fixed");
+  if (event.key.toLowerCase() === "v") {
+    event.preventDefault();
+    toggleVerdictPicker();
+  }
+});
+
+syncSettingsInputs();
+renderProblemEditor();
+applySettings();
+renderStage();
+loadSavedEpisode();
+saveEpisode();
