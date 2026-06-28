@@ -360,7 +360,7 @@ function statSizeForParts(parts) {
   return "normal";
 }
 
-function updateProblem(index, field, value) {
+function updateProblem(index, field, value, options = {}) {
   const problem = state.problems[index];
   if (!problem) return;
   if (field === "included") {
@@ -371,7 +371,9 @@ function updateProblem(index, field, value) {
     problem[field] = value;
   }
   state.selectedIndex = Math.min(state.selectedIndex, Math.max(includedProblems().length - 1, 0));
-  renderProblemEditor();
+  if (!options.keepEditorFocus) {
+    renderProblemEditor();
+  }
   renderStage();
   saveEpisode();
 }
@@ -418,7 +420,7 @@ problemList.addEventListener("input", (event) => {
   const field = event.target.dataset.field;
   const index = Number(event.target.dataset.index);
   if (!field) return;
-  updateProblem(index, field, event.target.value);
+  updateProblem(index, field, event.target.value, { keepEditorFocus: true });
 });
 
 problemList.addEventListener("change", (event) => {
@@ -487,10 +489,12 @@ episodeFileInput.addEventListener("change", () => {
 });
 
 document.addEventListener("keydown", (event) => {
-  const activeTag = document.activeElement.tagName;
-  const isTextEditing = ["INPUT", "TEXTAREA"].includes(activeTag);
+  const activeElement = document.activeElement;
+  const activeTag = activeElement?.tagName;
+  const isEditorControl = ["INPUT", "TEXTAREA", "SELECT"].includes(activeTag) || activeElement?.isContentEditable;
+  if (isEditorControl) return;
+
   if (event.code === "Space") {
-    if (isTextEditing || activeTag === "SELECT") return;
     event.preventDefault();
     if (state.verdictPickerVisible) {
       state.verdictPickerVisible = false;
@@ -499,7 +503,6 @@ document.addEventListener("keydown", (event) => {
     }
     handleSpacebar();
   }
-  if (isTextEditing) return;
   if (event.key.toLowerCase() === "s") setMode("studio");
   if (event.key.toLowerCase() === "m") setMode("control");
   if (event.key.toLowerCase() === "b") setMode("board");
