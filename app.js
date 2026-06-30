@@ -94,8 +94,26 @@ function episodePayload() {
   };
 }
 
+function captureEditorValues() {
+  problemList.querySelectorAll("[data-field][data-index]").forEach((field) => {
+    const index = Number(field.dataset.index);
+    const key = field.dataset.field;
+    const problem = state.problems[index];
+    if (!problem) return;
+
+    if (key === "included") {
+      problem.included = field.checked;
+    } else if (key === "evidence") {
+      problem.evidence = field.value.split("\n").map((item) => item.trim()).filter(Boolean);
+    } else {
+      problem[key] = field.value;
+    }
+  });
+}
+
 function saveEpisode(message = "Autosaved locally") {
   try {
+    captureEditorValues();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(episodePayload()));
     saveStatus.textContent = message;
   } catch {
@@ -515,6 +533,14 @@ document.addEventListener("keydown", (event) => {
   if (event.key.toLowerCase() === "v") {
     event.preventDefault();
     toggleVerdictPicker();
+  }
+});
+
+window.addEventListener("pagehide", () => saveEpisode("Saved on this browser"));
+window.addEventListener("beforeunload", () => saveEpisode("Saved on this browser"));
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") {
+    saveEpisode("Saved on this browser");
   }
 });
 
